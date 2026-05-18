@@ -2,6 +2,8 @@ import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import {HomeHeroSection} from "@/components/HomeHeroSection";
 import {GalleryShowcaseSection} from "@/components/GalleryShowcaseSection";
+import {HowItWorksSection} from "@/components/HowItWorksSection";
+import {Testimonials} from "@/components/Testimonials";
 
 export default function Home() {
   return (
@@ -11,7 +13,9 @@ export default function Home() {
 
 
  <GalleryShowcaseSection/>
+ <HowItWorksSection/>
 
+ <Testimonials/>
 
 
     </div>
