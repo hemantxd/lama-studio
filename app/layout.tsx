@@ -9,6 +9,7 @@ import {
 } from "@clerk/nextjs";
 // @ts-expect-error: side-effect import of CSS globals
 import "./globals.css";
+import { clerkModalAppearance } from "@/lib/clerk-modal-appearance";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,7 +36,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ClerkProvider>
+        <ClerkProvider appearance={clerkModalAppearance}>
           {children}
         </ClerkProvider>
       </body>
