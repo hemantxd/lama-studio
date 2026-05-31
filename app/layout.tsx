@@ -7,7 +7,6 @@ import {
   Show,
   UserButton,
 } from "@clerk/nextjs";
-// @ts-expect-error: side-effect import of CSS globals
 import "./globals.css";
 import { clerkModalAppearance } from "@/lib/clerk-modal-appearance";
 
