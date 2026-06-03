@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAuth, SignInButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -13,6 +13,7 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
+  ExternalLink,
 } from "lucide-react";
 import { PRESET_FILTERS, type FilterSlug } from "@/lib/ai";
 
@@ -23,6 +24,20 @@ interface TransformImageResponse {
   generationId?: string;
   error?: string;
   remainingGenerations?: number;
+}
+
+// Generation history type
+interface Generation {
+  id: string;
+  clerkUserId: string;
+  originalFileName: string | null;
+  sourceImageUrl: string;
+  resultImageUrl: string;
+  styleSlug: string;
+  styleLabel: string;
+  model: string;
+  promptUsed: string;
+  createdAt: string;
 }
 
 export default function StudioPage() {
@@ -36,6 +51,8 @@ export default function StudioPage() {
   const [error, setError] = useState<string | null>(null);
   const [remainingGenerations, setRemainingGenerations] = useState<number>(10);
   const [filteredName, setFilteredName] = useState<string | null>(null);
+  const [generations, setGenerations] = useState<Generation[]>([]);
+  const [isLoadingGenerations, setIsLoadingGenerations] = useState(false);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -107,6 +124,9 @@ export default function StudioPage() {
       if (data.remainingGenerations !== undefined) {
         setRemainingGenerations(data.remainingGenerations);
       }
+      
+      // Refresh the generations list
+      fetchGenerations();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
@@ -144,6 +164,52 @@ export default function StudioPage() {
       fileInputRef.current.value = "";
     }
   };
+
+  // Fetch generations on mount and after a successful transform
+  const fetchGenerations = async () => {
+    if (!isSignedIn) return;
+    
+    setIsLoadingGenerations(true);
+    try {
+      const response = await fetch("/api/generations");
+      const data = await response.json();
+      
+      if (data.success) {
+        setGenerations(data.generations);
+      }
+    } catch (err) {
+      console.error("Failed to fetch generations:", err);
+    } finally {
+      setIsLoadingGenerations(false);
+    }
+  };
+
+  // Format relative time
+  const formatRelativeTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    
+    return date.toLocaleDateString("en-US", { 
+      month: "short", 
+      day: "numeric" 
+    });
+  };
+
+  // Fetch generations when signed in
+  useEffect(() => {
+    if (isSignedIn) {
+      fetchGenerations();
+    }
+  }, [isSignedIn]);
 
   // Show sign-in prompt if not authenticated
   if (!isSignedIn) {
@@ -390,16 +456,70 @@ export default function StudioPage() {
 
             {/* History Section */}
             <div className="rounded-2xl border bg-card p-6 shadow-lg">
-              <div className="mb-4 flex items-center gap-2">
-                <History className="h-5 w-5" />
-                <h2 className="text-lg font-semibold">Recent Generations</h2>
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  <h2 className="text-lg font-semibold">Recent Generations</h2>
+                </div>
+                {generations.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {generations.length} total
+                  </span>
+                )}
               </div>
 
-              <div className="rounded-lg border border-dashed p-6 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Your generation history will appear here
-                </p>
-              </div>
+              {isLoadingGenerations ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : generations.length === 0 ? (
+                <div className="rounded-lg border border-dashed p-6 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    Your generation history will appear here
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {generations.slice(0, 10).map((generation) => (
+                    <div
+                      key={generation.id}
+                      className="group flex items-center gap-3 rounded-lg border p-3 transition-all hover:bg-muted/50"
+                    >
+                      <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-md border">
+                        <Image
+                          src={generation.resultImageUrl}
+                          alt={generation.styleLabel}
+                          width={64}
+                          height={64}
+                          className="h-full w-full object-cover"
+                          unoptimized
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm truncate">
+                            {generation.styleLabel}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatRelativeTime(generation.createdAt)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {generation.originalFileName || "Uploaded image"}
+                        </p>
+                      </div>
+                      <a
+                        href={generation.resultImageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-shrink-0 p-2 text-muted-foreground hover:text-primary transition-colors"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
